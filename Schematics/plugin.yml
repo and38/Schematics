@@ -1,0 +1,8 @@
+name: Schematics
+main: me.and38.Schematics
+description: Load and find schematics
+version: 0.1
+commands:
+    sc:
+        usage: /<command>
+        description: Does schematics
