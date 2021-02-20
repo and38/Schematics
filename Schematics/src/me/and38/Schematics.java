@@ -28,13 +28,18 @@ public class Schematics extends JavaPlugin {
 		if (!sender.hasPermission(COMMAND_PERMISSION_NODE) && !sender.isOp()) return false;
 		
 		if (cmd.getName().equalsIgnoreCase("sc")) {
-			if (args.length == 4 || args.length == 5) {
+			if (args.length == 8 || args.length == 9) {
 				World world = Bukkit.getServer().getWorld(args[0]);
 				int x = Integer.parseInt(args[1]);
 				int y = Integer.parseInt(args[2]);
 				int z = Integer.parseInt(args[3]);
-				boolean remove = args.length == 5 ? args[4].equalsIgnoreCase("remove") : false;
+				int blockDelay = Integer.parseInt(args[4]);
+				int rowDelay = Integer.parseInt(args[5]);
+				int verticalDelay = Integer.parseInt(args[6]);
+				boolean replaceWithAir = Boolean.parseBoolean(args[7]);
+				boolean isRemovalSchematic = args.length == 9 ? args[8].equalsIgnoreCase("remove") : false;
 				
+				sender.sendMessage("Loading schematic: " + schematicFile.getName());
 				loader.loadSchematicAsync(schematicFile).thenAccept(o -> {
 					Schematic schematic = null;
 					try {
@@ -43,22 +48,22 @@ public class Schematics extends JavaPlugin {
 						sender.sendMessage("Schematic file not found. Please add it to your schematics folder then do \"/sc <name>\".");
 						return;
 					}
-					// Center the schematic creation at the player
+					
+					// Center the schematic creation at the specified coordinates
 					int newX = x - schematic.getWidth() / 2;
 					int newZ = z - schematic.getLength() / 2;
 					
-					// If remove is active change schematic to remover
-					schematic = remove ? schematic.createRemoverSchematic() : schematic;
+					schematic = isRemovalSchematic ? schematic.createRemoverSchematic() : schematic;
 					sender.sendMessage("Placing schematic: " + schematic.getName());
 					loader.placeSchematicAsync(schematic, new Location(world, newX, y, newZ), 
-							!remove ? 50 : 0, !remove ? 250 : 0, remove ? 500 : 0, remove);
+							blockDelay, rowDelay, verticalDelay, isRemovalSchematic, replaceWithAir);
 				});
-			} else if (args.length == 1) {
+			} else if (args.length <= 2) {
 				if (args[0].equalsIgnoreCase("cancel")) {
 					sender.sendMessage("Canceling...");
 					loader.cancelPlacements();
 				} else if (args[0].equalsIgnoreCase("list")) {
-					sender.sendMessage("Current Placing: " + loader.getPlacements().toString());
+					sender.sendMessage("Currently placing: " + loader.getPlacements().toString());
 				} else {
 					schematicFile = new File(getDataFolder().getAbsolutePath() + File.separator + "schematics" + File.separator + args[0] + ".schematic");
 					sender.sendMessage("Current schematic set to " + args[0] + ".schematic");

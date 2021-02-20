@@ -20,13 +20,16 @@ import net.minecraft.server.v1_8_R3.NBTCompressedStreamTools;
 import net.minecraft.server.v1_8_R3.NBTTagCompound;
 import net.minecraft.server.v1_8_R3.TileEntity;
 
+import org.bukkit.Chunk;
 import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.craftbukkit.v1_8_R3.CraftWorld;
 import org.bukkit.material.RedstoneTorch;
 import org.bukkit.material.Torch;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitScheduler;
 
 import com.google.common.base.Predicate;
@@ -70,29 +73,30 @@ public class SchematicLoader {
 				schematic.getList("TileEntities", 10)); // 10 is the value for NBTTagCompound, meaning the list element type
 	}
 
-	public void placeSchematicAsync(File file, Location loc, long block, long row, long vertical, boolean topFirst) {
+	public void placeSchematicAsync(File file, Location loc, long block, long row, long vertical, boolean topFirst, boolean replaceWithAir) {
 		SchematicPlaceTask task = new SchematicPlaceTask(plugin, scheduler, this, null, 
-				file, loc, block, row, vertical, topFirst);
+				file, loc, block, row, vertical, topFirst, replaceWithAir);
 		placements.add(task);
 		task.callSingleAsync().thenAccept(t -> t.ifPresent(placements::remove));
 	}
 	
 	public void placeSchematicAsync(Schematic schematic, Location loc) {
-		placeSchematicAsync(schematic, loc, 0, 0, 0, false);
+		placeSchematicAsync(schematic, loc, 0, 0, 0, false, true);
 	}
 	
-	public void placeSchematicAsync(Schematic schematic, Location loc, long block, long row, long vertical, boolean topFirst) {
+	public void placeSchematicAsync(Schematic schematic, Location loc, long block, long row, long vertical, boolean topFirst, boolean replaceWithAir) {
 		SchematicPlaceTask task = new SchematicPlaceTask(plugin, scheduler, this, schematic, 
-				null, loc, block, row, vertical, topFirst);
+				null, loc, block, row, vertical, topFirst, replaceWithAir);
 		placements.add(task);
 		task.callSingleAsync().thenAccept(t -> t.ifPresent(placements::remove));
 	}
 
-	public void placeSchematic(Schematic schematic, Location location, long perBlock, long row, long vertical, boolean topFirst) throws InterruptedException {
+	public void placeSchematic(Schematic schematic, Location location, long perBlock, long row, long vertical, boolean topFirst, boolean replaceWithAir) throws InterruptedException {
 		if (schematic == null) return;
 		//TODO: maybe cache this?
 		Map<Location, Runnable> tileEntities = loadTileEntities(schematic, location);
-		
+		loadChunks(schematic, location);
+
 		@SuppressWarnings("deprecation")
 		ThrowableBiConsumer<byte[], Location, InterruptedException> blockPlacer = (b, loc) -> {
 			Material material = getMaterial(b[0]);
@@ -101,6 +105,8 @@ public class SchematicLoader {
 			}
 			
 			scheduler.callSyncMethod(plugin, () -> {
+				if (!replaceWithAir && material == Material.AIR) return null;
+				
 				if (material == Material.AIR && loc.getBlock().getType() == Material.CHEST) {
 					loc.getBlock().breakNaturally();
 				}
@@ -117,7 +123,6 @@ public class SchematicLoader {
 		};
 		
 		HashMap<byte[], Location> delayed = new HashMap<>();
-		
 		// y is height, x is width, z is length.
 		Predicate<Integer> yPredicate = (i) -> {
 			if (topFirst) {
@@ -155,6 +160,25 @@ public class SchematicLoader {
 		try {
 			Thread.sleep(20);
 		} catch (InterruptedException e) { }
+	}
+	
+	private void loadChunks(Schematic schematic, Location location) {
+		World world = location.getWorld();
+		Chunk cornerChunk = world.getChunkAt(location);
+		
+		for (int i = 0; i < schematic.getWidth() / 16; i++) {
+			for (int j = 0; j < schematic.getLength() / 16; j++) {
+				int chunkLocX = cornerChunk.getX() + i;
+				int chunkLocZ = cornerChunk.getZ() + j;
+
+				Chunk chunk = world.getChunkAt(chunkLocX, chunkLocZ);
+				if (!chunk.isLoaded()) {
+					System.out.println("trying to load chunk");
+					chunk.load(true);
+					System.out.println("Loaded chunk");
+				}
+			}
+		}
 	}
 	
 	private Map<Location, Runnable> loadTileEntities(Schematic schematic, Location location) {

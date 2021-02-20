@@ -20,10 +20,11 @@ public class SchematicPlaceTask extends BukkitSingleTask<SchematicPlaceTask> {
 	private long rowDelay;
 	private long verticalDelay;
 	private boolean topFirst;
+	private boolean replaceWithAir;
 	
 	public SchematicPlaceTask(Plugin plugin, BukkitScheduler scheduler, SchematicLoader loader, 
 			@Nullable Schematic schematic, @Nullable File schematicFile, Location loc, 
-			long blockDelay, long rowDelay, long verticalDelay, boolean topFirst) {
+			long blockDelay, long rowDelay, long verticalDelay, boolean topFirst, boolean replaceWithAir) {
 		super(plugin, scheduler);
 		this.schematic = schematic;
 		this.schematicFile = schematicFile;
@@ -33,18 +34,19 @@ public class SchematicPlaceTask extends BukkitSingleTask<SchematicPlaceTask> {
 		this.rowDelay = rowDelay;
 		this.verticalDelay = verticalDelay;
 		this.topFirst = topFirst;
+		this.replaceWithAir = replaceWithAir;
 	}
 	
 	public SchematicPlaceTask callTask() {
 		if (schematic == null) {
 			if (schematicFile == null) {
-				return null;
+				throw new RuntimeException("Schematic file was null");
 			}
 			schematic = loader.loadSchematic(schematicFile);
 		}
 		
 		try {
-			loader.placeSchematic(schematic, location, blockDelay, rowDelay, verticalDelay, topFirst);
+			loader.placeSchematic(schematic, location, blockDelay, rowDelay, verticalDelay, topFirst, replaceWithAir);
 		} catch (InterruptedException e) {
 			System.out.println("Schematic with name \"" + schematic.getName() + "\" build canceled");
 		}
